@@ -1,0 +1,17 @@
+/* App‑level tweaks – tailwind utilities are imported in index.css */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button {
+  cursor: pointer;
+}
+
+input,
+select,
+button {
+  font-family: inherit;
+}
