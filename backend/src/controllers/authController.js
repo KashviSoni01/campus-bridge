@@ -1,6 +1,17 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const getJwtSecret = () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not configured");
+  }
+
+  return process.env.JWT_SECRET;
+};
 
 export const signup = async (req, res) => {
   try {
@@ -40,7 +51,7 @@ export const signup = async (req, res) => {
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: "7d" }
     );
 
@@ -70,6 +81,14 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
+    // Allow both admin and student emails
+    const adminEmailRegex = /^[a-zA-Z0-9._%+-]+@admin\.edu\.in$/;
+    const studentEmailRegex = /^[a-zA-Z0-9._%+-]+@student\.edu\.in$/;
+    
+    if (!adminEmailRegex.test(email) && !studentEmailRegex.test(email)) {
+      return res.status(400).json({ message: "Only valid college email allowed" });
+    }
+
     const user = await User.findOne({ email }).select("+password");
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -82,7 +101,7 @@ export const login = async (req, res) => {
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: "7d" }
     );
 
@@ -98,6 +117,9 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
+    if (error.message === "JWT_SECRET is not configured") {
+      return res.status(500).json({ message: "Server configuration error" });
+    }
     res.status(500).json({ message: "Server error" });
   }
 };
