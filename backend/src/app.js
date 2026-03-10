@@ -5,6 +5,10 @@ import cors from "cors";
 import { signup, login } from "./controllers/authController.js";
 import adminRoutes from "./routes/admin.js";
 
+import opportunitiesRoutes from "./routes/opportunities.js";
+import applicationsRoutes from "./routes/applications.js";
+import savedRoutes from "./routes/saved.js";
+
 dotenv.config();
 
 const app = express();
@@ -13,6 +17,12 @@ const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/campusbri
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+
+//student 
+app.use("/api/opportunities", opportunitiesRoutes);
+app.use("/api/applications", applicationsRoutes);
+app.use("/api/saved", savedRoutes);
 
 // Database connection
 mongoose

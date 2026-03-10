@@ -165,7 +165,7 @@ opportunitySchema.pre('save', function(next) {
     this.isExpired = true;
     this.status = 'Expired';
   }
-  next();
+  // next();
 });
 
 const Opportunity = mongoose.model("Opportunity", opportunitySchema);

@@ -11,6 +11,13 @@ import Login from "./pages/Login.jsx";
 import Signup from "./pages/Signup.jsx";
 import StudentDashboard from "./pages/StudentDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
+import MyApplications from "./pages/MyApplications.jsx";
+import Profile from "./pages/Profile.jsx";
+import OpportunitiesSearch from "./pages/OpportunitiesSearch.jsx";
+import CategoryList from "./pages/CategoryList.jsx";
+import OpportunityDetail from "./pages/OpportunityDetail.jsx";
+import ApplyForm from "./pages/ApplyForm.jsx";
+import NotFound from "./pages/NotFound.jsx";
 
 function getStoredAuth() {
   if (typeof window === "undefined") return { token: null, role: null };
@@ -74,6 +81,13 @@ function App() {
             </StudentRoute>
           }
         />
+        <Route path="/applications" element={<MyApplications />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/opportunities" element={<OpportunitiesSearch />} />
+        <Route path="/opportunities/:category" element={<CategoryList />} />
+        <Route path="/opportunity/:id" element={<OpportunityDetail />} />
+        <Route path="/opportunity/:id/apply" element={<ApplyForm />} />
+        <Route path="*" element={<NotFound />} />
         <Route
           path="/admin"
           element={
