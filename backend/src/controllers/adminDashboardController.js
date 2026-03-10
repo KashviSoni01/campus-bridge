@@ -67,10 +67,11 @@ export const getDashboardStats = async (req, res) => {
       { $sort: { _id: 1 } }
     ]);
 
-    const recentActivity = await ActivityLog.find()
-      .populate("user", "fullName email")
-      .sort({ timestamp: -1 })
-      .limit(10);
+    // const recentActivity = await ActivityLog.find()
+    //   .populate("user", "fullName email")
+    //   .sort({ timestamp: -1 })
+    //   .limit(10);
+    const recentActivity = [];
 
     const stats = {
       totalUsers,
@@ -96,20 +97,20 @@ export const getDashboardStats = async (req, res) => {
 export const getAnalytics = async (req, res) => {
   try {
     const { period = "30" } = req.query;
-    const days = parseInt(period);
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    // const days = parseInt(period);
+    // const startDate = new Date();
+    // startDate.setDate(startDate.getDate() - days);
 
-    const analytics = await Analytics.find({
-      date: { $gte: startDate }
-    }).sort({ date: 1 });
+    // const analytics = await Analytics.find({
+    //   date: { $gte: startDate }
+    // }).sort({ date: 1 });
 
-    if (analytics.length === 0) {
-      await generateDailyAnalytics();
-      return getAnalytics(req, res);
-    }
+    // if (analytics.length === 0) {
+    //   await generateDailyAnalytics();
+    //   return getAnalytics(req, res);
+    // }
 
-    res.json(analytics);
+    res.json([]);
   } catch (error) {
     console.error("Analytics error:", error);
     res.status(500).json({ message: "Server error" });
@@ -117,44 +118,44 @@ export const getAnalytics = async (req, res) => {
 };
 
 const generateDailyAnalytics = async () => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // const today = new Date();
+  // today.setHours(0, 0, 0, 0);
 
-  const totalUsers = await User.countDocuments({ role: "student" });
-  const activeUsers = await User.countDocuments({
-    role: "student",
-    lastActive: { $gte: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000) }
-  });
-  const totalOpportunities = await Opportunity.countDocuments();
-  const activeOpportunities = await Opportunity.countDocuments({ 
-    status: "Active", 
-    deadline: { $gt: today } 
-  });
-  const totalApplications = await Application.countDocuments();
-  const newApplications = await Application.countDocuments({
-    createdAt: { $gte: today }
-  });
+  // const totalUsers = await User.countDocuments({ role: "student" });
+  // const activeUsers = await User.countDocuments({
+  //   role: "student",
+  //   lastActive: { $gte: new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000) }
+  // });
+  // const totalOpportunities = await Opportunity.countDocuments();
+  // const activeOpportunities = await Opportunity.countDocuments({ 
+  //   status: "Active", 
+  //   deadline: { $gt: today } 
+  // });
+  // const totalApplications = await Application.countDocuments();
+  // const newApplications = await Application.countDocuments({
+  //   createdAt: { $gte: today }
+  // });
 
-  const totalViews = await Opportunity.aggregate([
-    { $group: { _id: null, total: { $sum: "$views" } } }
-  ]);
+  // const totalViews = await Opportunity.aggregate([
+  //   { $group: { _id: null, total: { $sum: "$views" } } }
+  // ]);
 
-  const conversionRate = totalOpportunities > 0 ? (totalApplications / totalViews[0]?.total || 1) * 100 : 0;
+  // const conversionRate = totalOpportunities > 0 ? (totalApplications / totalViews[0]?.total || 1) * 100 : 0;
 
-  await Analytics.findOneAndUpdate(
-    { date: today },
-    {
-      totalUsers,
-      activeUsers,
-      totalOpportunities,
-      activeOpportunities,
-      totalApplications,
-      newApplications,
-      totalViews: totalViews[0]?.total || 0,
-      conversionRate
-    },
-    { upsert: true, new: true }
-  );
+  // await Analytics.findOneAndUpdate(
+  //   { date: today },
+  //   {
+  //     totalUsers,
+  //     activeUsers,
+  //     totalOpportunities,
+  //     activeOpportunities,
+  //     totalApplications,
+  //     newApplications,
+  //     totalViews: totalViews[0]?.total || 0,
+  //     conversionRate
+  //   },
+  //   { upsert: true, new: true }
+  // );
 };
 
 export const getUsers = async (req, res) => {

@@ -160,12 +160,11 @@ opportunitySchema.index({ deadline: 1 });
 opportunitySchema.index({ featured: 1, status: 1 });
 opportunitySchema.index({ isExpired: 1 });
 
-opportunitySchema.pre('save', function(next) {
+opportunitySchema.pre('save', async function() {
   if (this.deadline && new Date() > new Date(this.deadline)) {
     this.isExpired = true;
     this.status = 'Expired';
   }
-  // next();
 });
 
 const Opportunity = mongoose.model("Opportunity", opportunitySchema);
