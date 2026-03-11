@@ -8,15 +8,13 @@ import adminRoutes from "./routes/admin.js";
 dotenv.config();
 
 const app = express();
-const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/campusbridge";
+const mongoUri = process.env.MONGODB_URI;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Database connection
 mongoose
-  .connect(mongoUri)
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected Successfully"))
   .catch((err) => console.error("MongoDB Connection error:", err));
 

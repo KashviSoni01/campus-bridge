@@ -7,7 +7,7 @@ dotenv.config();
 
 const createAdmin = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/campusbridge");
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log("MongoDB Connected");
 
     const adminEmail = "superadmin@admin.edu.in";
