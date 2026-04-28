@@ -50,6 +50,36 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    phone: {
+      type: String,
+      default: "",
+    },
+
+    college: {
+      type: String,
+      default: "",
+    },
+
+    location: {
+      type: String,
+      default: "",
+    },
+
+    github: {
+      type: String,
+      default: "",
+    },
+
+    linkedin: {
+      type: String,
+      default: "",
+    },
+
+    bio: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

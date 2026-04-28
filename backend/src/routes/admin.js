@@ -3,10 +3,7 @@ import { authenticate, isAdmin } from "../middleware/adminAuth.js";
 import {
   getDashboardStats,
   getAnalytics,
-  getNotifications,
-  getUsers,
-  getApplications,
-  getCalendarData
+  getUsers
 } from "../controllers/adminDashboardController.js";
 import {
   getOpportunities,
@@ -16,10 +13,6 @@ import {
   deleteOpportunity,
   toggleFeature,
   duplicateOpportunity,
-  incrementViews,
-  softDeleteOpportunity,
-  restoreOpportunity,
-  extendDeadline,
   bulkUpdateOpportunities,
   bulkDeleteOpportunities
 } from "../controllers/adminOpportunityController.js";
@@ -31,13 +24,8 @@ router.use(isAdmin);
 
 router.get("/dashboard/stats", getDashboardStats);
 router.get("/dashboard/analytics", getAnalytics);
-router.get("/notifications", getNotifications);
-
 router.get("/users", getUsers);
 
-router.get("/applications", getApplications);
-
-router.get("/calendar", getCalendarData);
 
 
 router.get("/opportunities", getOpportunities);
@@ -47,10 +35,6 @@ router.put("/opportunities/:id", updateOpportunity);
 router.delete("/opportunities/:id", deleteOpportunity);
 router.put("/opportunities/:id/feature", toggleFeature);
 router.post("/opportunities/:id/duplicate", duplicateOpportunity);
-router.post("/opportunities/:id/views", incrementViews);
-router.post("/opportunities/:id/soft-delete", softDeleteOpportunity);
-router.post("/opportunities/:id/restore", restoreOpportunity);
-router.put("/opportunities/:id/extend-deadline", extendDeadline);
 router.put("/opportunities/bulk-update", bulkUpdateOpportunities);
 router.delete("/opportunities/bulk-delete", bulkDeleteOpportunities);
 

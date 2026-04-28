@@ -11,6 +11,7 @@ import upload from "./middleware/upload.js";
 import opportunitiesRoutes from "./routes/opportunities.js";
 import applicationsRoutes from "./routes/applications.js";
 import savedRoutes from "./routes/saved.js";
+import userRoutes from "./routes/users.js";
 
 dotenv.config();
 
@@ -32,6 +33,13 @@ app.use("/uploads", express.static(path.join(path.dirname(__dirname), "uploads")
 app.use("/api/opportunities", opportunitiesRoutes);
 app.use("/api/applications", applicationsRoutes);
 app.use("/api/saved", savedRoutes);
+app.use("/api/users", userRoutes);
+
+// Shortcut: /api/me -> /api/users/me
+app.use("/api/me", (req, res, next) => {
+  req.url = "/me" + req.url;
+  userRoutes(req, res, next);
+});
 
 
 mongoose

@@ -3,7 +3,7 @@
 import Opportunity from "../models/Opportunity.js";
 import Application from "../models/Application.js";
 import User from "../models/User.js";
-import { opportunities as storeOpportunities } from "../data/store.js";
+
 
 
 /* =========================================
@@ -53,8 +53,7 @@ export const createOpportunity = async (req, res) => {
 
     await opportunity.save();
 
-    // store also in express memory
-    storeOpportunities.push(opportunity);
+
 
     const populatedOpportunity = await Opportunity.findById(opportunity._id)
       .populate("postedBy", "fullName email");
@@ -196,7 +195,7 @@ export const duplicateOpportunity = async (req, res) => {
 
     await newOpportunity.save();
 
-    storeOpportunities.push(newOpportunity);
+
 
     res.status(201).json(newOpportunity);
 

@@ -2,6 +2,7 @@ import express from "express";
 import Application from "../models/Application.js";
 import Opportunity from "../models/Opportunity.js";
 import ActivityLog from "../models/ActivityLog.js";
+import { resumeUpload } from "../middleware/upload.js";
 
 const logActivity = async (action, userId, opportunityId, message, details = {}, priority = "medium") => {
   try {
@@ -24,7 +25,7 @@ const logActivity = async (action, userId, opportunityId, message, details = {},
 const router = express.Router();
 
 /* Apply to opportunity */
-router.post("/", async (req, res) => {
+router.post("/", resumeUpload.single("resume"), async (req, res) => {
   try {
     const { opportunityId, student, name, email, phone, college, branch, year, portfolio, resume, coverLetter } = req.body;
 
@@ -38,6 +39,9 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "You have already applied to this opportunity" });
     }
 
+    // req.file contains the uploaded resume (multer); req.body.resume is undefined for file fields
+    const resumePath = req.file ? req.file.filename : (resume || null);
+
     const newApplication = new Application({
       opportunity: opportunityId,
       student: student || null,
@@ -48,7 +52,7 @@ router.post("/", async (req, res) => {
       branch,
       year,
       portfolio,
-      resume,
+      resume: resumePath,
       coverLetter,
       status: "Pending",
     });
@@ -80,9 +84,10 @@ router.post("/", async (req, res) => {
     
     res.status(201).json(newApplication);
   } catch (error) {
-        res.status(500).json({ 
+    console.error("Error creating application:", error);
+    res.status(500).json({ 
       success: false, 
-      message: "Error creating application" 
+      message: error.message || "Error creating application" 
     });
   }
 });

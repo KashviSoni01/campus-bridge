@@ -241,8 +241,8 @@ export default function AdminDashboard() {
 
   const handleCreateEvent = async () => {
     try {
-      if (!eventForm.title || !eventForm.description || !eventForm.organization || !eventForm.deadline) {
-        setError("Please fill all required fields");
+      if (!eventForm.title || !eventForm.description || !eventForm.organization || !eventForm.deadline || !eventForm.duration) {
+        showToast("error", "Please fill all required fields");
         return;
       }
 
@@ -447,7 +447,7 @@ export default function AdminDashboard() {
   const handleSendNotification = async () => {
     try {
       if (!notificationForm.title || !notificationForm.message) {
-        setError("Please fill all notification fields");
+        showToast("error", "Please fill all notification fields");
         return;
       }
 

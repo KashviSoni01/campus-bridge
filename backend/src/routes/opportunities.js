@@ -1,16 +1,36 @@
 import express from "express";
 import Opportunity from "../models/Opportunity.js";
-import { opportunities as storeOpportunities } from "../data/store.js";
 
 const router = express.Router();
 
 
+/* GET all opportunities (with search & expired filter) */
 router.get("/", async (req, res) => {
   try {
-    const dbOpportunities = await Opportunity.find();
-    const allOpportunities = [...storeOpportunities, ...dbOpportunities];
-    res.json(allOpportunities);
+    const { search, includeExpired } = req.query;
+
+    // Base filter: exclude expired by default
+    const filter = {};
+    if (!includeExpired || includeExpired !== "true") {
+      filter.deadline = { $gte: new Date() };
+    }
+
+    // Search filter
+    if (search && search.length > 0) {
+      const searchRegex = new RegExp(search, "i");
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { organization: searchRegex },
+        { category: searchRegex },
+        { skills: searchRegex },
+      ];
+    }
+
+    const dbOpportunities = await Opportunity.find(filter).sort({ createdAt: -1 });
+    res.json(dbOpportunities);
   } catch (error) {
+    console.error("Error fetching opportunities:", error);
     res.status(500).json({ message: "Error fetching opportunities" });
   }
 });
@@ -18,12 +38,8 @@ router.get("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    // First check store
-    let opportunity = storeOpportunities.find(o => o._id === req.params.id);
-    if (!opportunity) {
-      // Then check MongoDB
-      opportunity = await Opportunity.findById(req.params.id);
-    }
+    const opportunity = await Opportunity.findById(req.params.id);
+    
     if (!opportunity) {
       return res.status(404).json({ message: "Opportunity not found" });
     }
