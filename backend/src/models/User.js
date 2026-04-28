@@ -46,63 +46,14 @@ const userSchema = new mongoose.Schema(
       },
     },
 
-    // Additional fields for admin dashboard
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-
-    lastLogin: {
-      type: Date,
-    },
-
     profilePicture: {
       type: String,
       default: "",
     },
-
-    phone: {
-      type: String,
-      default: "",
-    },
-
-    cgpa: {
-      type: Number,
-      min: 0,
-      max: 10,
-      default: 0,
-    },
-
-    skills: [{
-      type: String,
-      trim: true,
-    }],
-
-    bio: {
-      type: String,
-      maxlength: 500,
-      default: "",
-    },
-
-    // Admin specific fields
-    permissions: [{
-      type: String,
-      enum: ["user_management", "opportunity_management", "application_management", "system_settings"],
-    }],
-
-    // Activity tracking
-    totalApplications: {
-      type: Number,
-      default: 0,
-    },
-
-    totalOpportunitiesCreated: {
-      type: Number,
-      default: 0,
-    },
   },
   { timestamps: true }
 );
+
 
 const User = mongoose.model("User", userSchema);
 

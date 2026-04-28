@@ -2,54 +2,55 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
-import { signup, login } from "./controllers/authController.js";
+import path from "path";
+import { fileURLToPath } from "url";
+import { signup, login, googleLogin } from "./controllers/authController.js";
 import adminRoutes from "./routes/admin.js";
+import upload from "./middleware/upload.js";
 
 import opportunitiesRoutes from "./routes/opportunities.js";
 import applicationsRoutes from "./routes/applications.js";
 import savedRoutes from "./routes/saved.js";
-import activityRoutes from "./routes/activity.js";
 
 dotenv.config();
 
-const app = express();
-const mongoUri = process.env.MONGO_URI;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175'],
-  credentials: true
-}));
+const app = express();
+const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/campusbridge";
+
+
+app.use(cors());
 app.use(express.json());
 
-app.use("/api/admin", adminRoutes);
+// Serve static files from uploads directory
+app.use("/uploads", express.static(path.join(path.dirname(__dirname), "uploads")));
+
+
+
+app.use("/api/opportunities", opportunitiesRoutes);
+app.use("/api/applications", applicationsRoutes);
+app.use("/api/saved", savedRoutes);
+
 
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(mongoUri)
+  .then(() => console.log("MongoDB Connected Successfully"))
   .catch((err) => console.error("MongoDB Connection error:", err));
 
 app.get("/", (req, res) => {
   res.send("CampusBridge Backend Running");
 });
 
-app.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "Backend is healthy",
-    timestamp: new Date().toISOString()
-  });
-});
 
-app.get("/force-login", (req, res) => {
-  res.json({
-    success: true,
-    message: "Please login again",
-    action: "CLEAR_TOKENS_AND_LOGIN",
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.post("/signup", signup);
+app.post("/signup", upload.single("profilePicture"), signup);
 app.post("/login", login);
+app.post("/google-login", googleLogin);
+
+
+app.use("/api/admin", adminRoutes);
+
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -63,5 +64,5 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  // Server running on port ${PORT}
+  console.log(`Server running on port ${PORT}`);
 });
