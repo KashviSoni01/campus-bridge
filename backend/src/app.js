@@ -7,7 +7,6 @@ import { fileURLToPath } from "url";
 import { signup, login, googleLogin } from "./controllers/authController.js";
 import adminRoutes from "./routes/admin.js";
 import upload from "./middleware/upload.js";
-import { chatWithAI } from "./controllers/chatController.js";
 
 import opportunitiesRoutes from "./routes/opportunities.js";
 import applicationsRoutes from "./routes/applications.js";
@@ -22,14 +21,8 @@ const app = express();
 const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/campusbridge";
 
 
-app.use(cors({ origin: true }));
+app.use(cors());
 app.use(express.json());
-
-// Log incoming requests for debugging route issues
-app.use((req, res, next) => {
-  console.log(`Incoming request: ${req.method} ${req.url}`);
-  next();
-});
 
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(path.dirname(__dirname), "uploads")));
@@ -39,16 +32,7 @@ app.use("/uploads", express.static(path.join(path.dirname(__dirname), "uploads")
 app.use("/api/opportunities", opportunitiesRoutes);
 app.use("/api/applications", applicationsRoutes);
 app.use("/api/saved", savedRoutes);
-app.options("/api/chat", cors({ origin: true }));
-app.all("/api/chat", (req, res, next) => {
-  console.log(`Chat endpoint requested: ${req.method} ${req.url}`);
-  next();
-});
-app.get("/api/chat", (req, res) => {
-  res.json({ message: "Chat endpoint alive. Use POST to send a chat message." });
-});
-app.post("/api/chat", chatWithAI);
-console.log("Chat route registered at POST /api/chat");
+
 
 mongoose
   .connect(mongoUri)
