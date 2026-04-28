@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Menu, Search, X, Zap, Calendar, Settings, Plus, Filter, Grid, List } from "lucide-react";
+import { Menu, Search, X, Zap, Calendar, Settings, Plus, Filter, Grid, List, Download } from "lucide-react";
 import { dashboardAPI, opportunityAPI } from "../services/api.js";
 import OpportunityCalendar from "../components/OpportunityCalendar.jsx";
+import Toast from "../components/Toast.jsx";
+import LoadingSpinner from "../components/LoadingSpinner.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 
 export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -10,10 +13,8 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [profileDropdown, setProfileDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [showEventModal, setShowEventModal] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [viewMode, setViewMode] = useState("grid"); // grid or list
+  const [viewMode, setViewMode] = useState("grid");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("deadline");
@@ -23,14 +24,19 @@ export default function AdminDashboard() {
     totalUsers: 0,
     totalOpportunities: 0,
     activeOpportunities: 0,
+    expiredOpportunities: 0,
     totalApplications: 0,
-    monthlyGrowth: 0,
-    weeklyApplications: 0,
-    popularCategories: [],
     recentActivity: []
   });
 
+  const [adminName, setAdminName] = useState("Admin");
+
   const [events, setEvents] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [selectedEvents, setSelectedEvents] = useState([]);
+  const [bulkAction, setBulkAction] = useState("");
 
   const [eventForm, setEventForm] = useState({
     title: "",
@@ -72,6 +78,8 @@ export default function AdminDashboard() {
   const menuItems = [
     { id: "events", label: "Opportunities", icon: "🎪", description: "Manage all opportunities" },
     { id: "create-event", label: "Create Opportunity", icon: "✨", description: "Create new opportunity" },
+    { id: "applications", label: "Applications", icon: "📝", description: "Manage applications" },
+    { id: "users", label: "Users", icon: "👥", description: "Manage users" },
     { id: "calendar", label: "Calendar", icon: "📅", description: "Event calendar" },
     { id: "settings", label: "Settings", icon: "⚙️", description: "System settings" }
   ];
@@ -79,29 +87,46 @@ export default function AdminDashboard() {
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
+      
+      // First, try to get a fresh token
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) {
+        console.error('No token found, redirecting to login');
+        window.location.href = '/login';
+        return;
+      }
+      
+      console.log('Fetching dashboard stats...');
       const data = await dashboardAPI.getStats();
+      console.log('Dashboard data received:', data);
+      
       setStats({
         totalUsers: data.totalUsers || 0,
         totalOpportunities: data.totalOpportunities || 0,
         activeOpportunities: data.activeOpportunities || 0,
+        expiredOpportunities: data.expiredOpportunities || 0,
         totalApplications: data.totalApplications || 0,
-        monthlyGrowth: data.monthlyGrowth || 0,
-        weeklyApplications: data.weeklyApplications || 0,
-        popularCategories: data.popularCategories || [],
         recentActivity: data.recentActivity || []
       });
     } catch (error) {
-      console.error("Dashboard stats error:", error);
+      console.error('Dashboard fetch error:', error);
+      
+      // Clear token and redirect to login on error
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
+      
       setStats({
         totalUsers: 0,
         totalOpportunities: 0,
         activeOpportunities: 0,
+        expiredOpportunities: 0,
         totalApplications: 0,
-        monthlyGrowth: 0,
-        weeklyApplications: 0,
-        popularCategories: [],
         recentActivity: []
       });
+      
+      // Show error message
+      alert(`Failed to fetch dashboard data: ${error.message}. Please login again.`);
+      window.location.href = '/login';
     } finally {
       setLoading(false);
     }
@@ -109,9 +134,7 @@ export default function AdminDashboard() {
 
   const fetchEvents = async () => {
     try {
-      setLoading(true);
       const data = await opportunityAPI.getAll();
-      console.log("Fetched events data:", data);
       
       let eventsData = [];
       if (data && data.opportunities && Array.isArray(data.opportunities)) {
@@ -121,17 +144,50 @@ export default function AdminDashboard() {
       } else if (data && Array.isArray(data.data)) {
         eventsData = data.data;
       } else {
-        console.warn("Unexpected events data format:", data);
         eventsData = [];
       }
       
       setEvents(eventsData);
-      console.log("Set events:", eventsData);
     } catch (err) {
-      console.error("Events error:", err);
       setEvents([]);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStudents(data.users || []);
+      } else {
+        setStudents([]);
+      }
+    } catch (error) {
+      setStudents([]);
+    }
+  };
+
+  const fetchApplications = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/applications', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setApplications(data.applications || []);
+      } else {
+        setApplications([]);
+      }
+    } catch (error) {
+      setApplications([]);
     }
   };
 
@@ -147,6 +203,13 @@ export default function AdminDashboard() {
   }, [profileDropdown]);
 
   useEffect(() => {
+    // Get admin name from stored user data
+    const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setAdminName(parsedUser?.fullName || "Admin");
+    }
+
     if (!localStorage.getItem('token') && !sessionStorage.getItem('token')) {
       const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZDhiNzE3YjE5ZjM0M2E4ZjNhNzI4ZCIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTczNjU2MjQwMCwiZXhwIjoxNzM5MTU0NDAwfQ.mock-token-for-testing';
       localStorage.setItem('token', mockToken);
@@ -155,33 +218,20 @@ export default function AdminDashboard() {
     
     const loadData = async () => {
       try {
-        await Promise.all([fetchDashboardStats(), fetchEvents()]);
+        await Promise.all([fetchDashboardStats(), fetchEvents(), fetchUsers(), fetchApplications()]);
       } catch (error) {
-        console.error("Failed to load data, using fallback:", error);
         setStats({
-          totalUsers: 150,
-          totalOpportunities: 25,
-          activeOpportunities: 18,
-          totalApplications: 342,
-          monthlyGrowth: 12,
-          weeklyApplications: 28,
-          popularCategories: ["Internship", "Hackathon", "Workshop"],
+          totalUsers: 0,
+          totalOpportunities: 0,
+          activeOpportunities: 0,
+          expiredOpportunities: 0,
+          totalApplications: 0,
           recentActivity: []
         });
-        setEvents([
-          {
-            _id: "1",
-            title: "Summer Internship Program",
-            organization: "Tech Corp",
-            description: "Amazing opportunity for students",
-            category: "Internship",
-            mode: "Online",
-            deadline: "2024-12-31",
-            status: "Active",
-            views: 45,
-            applications: 12
-          }
-        ]);
+        setEvents([]);
+        setStudents([]);
+        setApplications([]);
+      } finally {
         setLoading(false);
       }
     };
@@ -233,8 +283,6 @@ export default function AdminDashboard() {
         createdAt: new Date().toISOString()
       };
 
-      console.log("Sending event data:", eventData);
-      
       const response = await fetch('http://localhost:5000/api/admin/opportunities', {
         method: 'POST',
         headers: {
@@ -247,16 +295,15 @@ export default function AdminDashboard() {
       if (response.ok) {
         const newEvent = await response.json();
         setEvents([newEvent, ...events]);
-        await fetchDashboardStats();
+        await Promise.all([fetchDashboardStats(), fetchEvents()]);
         setShowEventModal(false);
         resetEventForm();
-        alert("Event created successfully! 🎉");
+        showToast('success', 'Opportunity created successfully!');
       } else {
         throw new Error("Failed to create event");
       }
     } catch (error) {
-      console.error("Error creating event:", error);
-      setError("Failed to create event. Please try again.");
+      showToast('error', 'Failed to create event. Please try again.');
     }
   };
 
@@ -273,7 +320,7 @@ export default function AdminDashboard() {
   const handleUpdateEvent = async () => {
     try {
       if (!editingEvent || !editingEvent._id) {
-        setError("No event selected for editing");
+        showToast('error', 'No event selected for editing');
         return;
       }
 
@@ -291,16 +338,15 @@ export default function AdminDashboard() {
         setEvents(events.map(event => 
           event._id === editingEvent._id ? updatedEvent : event
         ));
-        await fetchDashboardStats(); 
+        await Promise.all([fetchDashboardStats(), fetchEvents()]);
         setShowEditModal(false);
         setEditingEvent(null);
-        alert("Event updated successfully! 🎉");
+        showToast('success', 'Opportunity updated successfully!');
       } else {
         throw new Error("Failed to update event");
       }
     } catch (error) {
-      console.error("Error updating event:", error);
-      setError("Failed to update event. Please try again.");
+      showToast('error', 'Failed to update event. Please try again.');
     }
   };
 
@@ -319,14 +365,47 @@ export default function AdminDashboard() {
 
       if (response.ok) {
         setEvents(events.filter(event => event._id !== eventId));
-        await fetchDashboardStats();
-        alert("Event deleted successfully! 🎉");
+        await Promise.all([fetchDashboardStats(), fetchEvents()]);
+        showToast('success', 'Opportunity deleted successfully!');
       } else {
         throw new Error("Failed to delete event");
       }
     } catch (error) {
-      console.error("Error deleting event:", error);
-      setError("Failed to delete event. Please try again.");
+      showToast('error', 'Failed to delete event. Please try again.');
+    }
+  };
+
+  const handleDuplicateEvent = async (event) => {
+    try {
+      const duplicatedEvent = {
+        ...event,
+        title: `${event.title} (Copy)`,
+        status: "Draft",
+        _id: undefined,
+        createdAt: undefined,
+        updatedAt: undefined,
+        __v: undefined
+      };
+
+      const response = await fetch('http://localhost:5000/api/admin/opportunities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
+        },
+        body: JSON.stringify(duplicatedEvent)
+      });
+
+      if (response.ok) {
+        const newEvent = await response.json();
+        setEvents([newEvent, ...events]);
+        await Promise.all([fetchDashboardStats(), fetchEvents()]);
+        showToast('success', 'Opportunity duplicated successfully!');
+      } else {
+        throw new Error("Failed to duplicate event");
+      }
+    } catch (error) {
+      showToast('error', 'Failed to duplicate opportunity');
     }
   };
 
@@ -381,8 +460,6 @@ export default function AdminDashboard() {
         createdAt: new Date().toISOString()
       };
 
-      console.log("Sending notification:", notificationData);
- 
       const response = await fetch('/api/admin/notifications', {
         method: 'POST',
         headers: {
@@ -439,9 +516,101 @@ export default function AdminDashboard() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
+    localStorage.removeItem("user");
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("role");
+    sessionStorage.removeItem("user");
     navigate("/login");
+  };
+
+  const showToast = (type, message) => {
+    setToast({ type, message });
+  };
+
+  const handleExportData = (type, format) => {
+    showToast('info', `Exporting ${type} data as ${format.toUpperCase()}...`);
+    // In a real implementation, this would call the backend API to export data
+  };
+
+  const handleSelectEvent = (eventId) => {
+    setSelectedEvents(prev => 
+      prev.includes(eventId) 
+        ? prev.filter(id => id !== eventId)
+        : [...prev, eventId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const filteredEvents = getFilteredEvents();
+    if (selectedEvents.length === filteredEvents.length) {
+      setSelectedEvents([]);
+    } else {
+      setSelectedEvents(filteredEvents.map(event => event._id));
+    }
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedEvents.length === 0) {
+      showToast('warning', 'Please select at least one opportunity');
+      return;
+    }
+
+    try {
+      let updateData = {};
+      switch (bulkAction) {
+        case 'activate':
+          updateData = { status: 'Active' };
+          break;
+        case 'close':
+          updateData = { status: 'Closed' };
+          break;
+        case 'draft':
+          updateData = { status: 'Draft' };
+          break;
+        case 'delete':
+          if (!window.confirm(`Are you sure you want to delete ${selectedEvents.length} opportunities?`)) {
+            return;
+          }
+          // Delete all selected
+          for (const eventId of selectedEvents) {
+            await fetch(`http://localhost:5000/api/admin/opportunities/${eventId}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
+              }
+            });
+          }
+          showToast('success', `Deleted ${selectedEvents.length} opportunities`);
+          setSelectedEvents([]);
+          await Promise.all([fetchDashboardStats(), fetchEvents()]);
+          return;
+        default:
+          return;
+      }
+
+      // Update all selected
+      const response = await fetch('http://localhost:5000/api/admin/opportunities/bulk-update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          opportunityIds: selectedEvents,
+          updateData
+        })
+      });
+
+      if (response.ok) {
+        showToast('success', `Updated ${selectedEvents.length} opportunities`);
+        setSelectedEvents([]);
+        setBulkAction('');
+        await Promise.all([fetchDashboardStats(), fetchEvents()]);
+      }
+    } catch (error) {
+      console.error('Bulk action error:', error);
+      showToast('error', 'Failed to perform bulk action');
+    }
   };
 
   const getCategoryIcon = (category) => {
@@ -569,7 +738,7 @@ export default function AdminDashboard() {
   const renderEventsDashboard = () => (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-6">
         <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 p-3 lg:p-6 rounded-xl lg:rounded-2xl backdrop-blur-xl">
           <div className="flex items-center justify-between mb-2 lg:mb-4">
             <div className="w-8 h-8 lg:w-12 lg:h-12 bg-blue-500 rounded-lg lg:rounded-xl flex items-center justify-center text-lg lg:text-2xl">
@@ -590,16 +759,6 @@ export default function AdminDashboard() {
           <div className="text-emerald-300 text-xs lg:text-sm">Total Opportunities</div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 p-3 lg:p-6 rounded-xl lg:rounded-2xl backdrop-blur-xl">
-          <div className="flex items-center justify-between mb-2 lg:mb-4">
-            <div className="w-8 h-8 lg:w-12 lg:h-12 bg-purple-500 rounded-lg lg:rounded-xl flex items-center justify-center text-lg lg:text-2xl">
-              📝
-            </div>
-          </div>
-          <div className="text-xl lg:text-3xl font-bold text-white mb-1">{stats.totalApplications}</div>
-          <div className="text-purple-300 text-xs lg:text-sm">Applications</div>
-        </div>
-
         <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 p-3 lg:p-6 rounded-xl lg:rounded-2xl backdrop-blur-xl">
           <div className="flex items-center justify-between mb-2 lg:mb-4">
             <div className="w-8 h-8 lg:w-12 lg:h-12 bg-orange-500 rounded-lg lg:rounded-xl flex items-center justify-center text-lg lg:text-2xl">
@@ -609,15 +768,59 @@ export default function AdminDashboard() {
           <div className="text-xl lg:text-3xl font-bold text-white mb-1">{stats.activeOpportunities}</div>
           <div className="text-orange-300 text-xs lg:text-sm">Active Opportunities</div>
         </div>
+
+        <div className="bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 p-3 lg:p-6 rounded-xl lg:rounded-2xl backdrop-blur-xl">
+          <div className="flex items-center justify-between mb-2 lg:mb-4">
+            <div className="w-8 h-8 lg:w-12 lg:h-12 bg-red-500 rounded-lg lg:rounded-xl flex items-center justify-center text-lg lg:text-2xl">
+              ⏰
+            </div>
+          </div>
+          <div className="text-xl lg:text-3xl font-bold text-white mb-1">{stats.expiredOpportunities}</div>
+          <div className="text-red-300 text-xs lg:text-sm">Expired Opportunities</div>
+        </div>
+
+        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 p-3 lg:p-6 rounded-xl lg:rounded-2xl backdrop-blur-xl">
+          <div className="flex items-center justify-between mb-2 lg:mb-4">
+            <div className="w-8 h-8 lg:w-12 lg:h-12 bg-purple-500 rounded-lg lg:rounded-xl flex items-center justify-center text-lg lg:text-2xl">
+              📝
+            </div>
+          </div>
+          <div className="text-xl lg:text-3xl font-bold text-white mb-1">{stats.totalApplications}</div>
+          <div className="text-purple-300 text-xs lg:text-sm">Applications</div>
+        </div>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-4 mb-6">
-          <p className="text-red-200">{error}</p>
+      {/* Recent Activity */}
+      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl backdrop-blur-xl p-4 lg:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+            🔔 Recent Activity
+          </h3>
+          <button className="text-sky-400 hover:text-sky-300 text-sm transition-colors">
+            View All
+          </button>
         </div>
-      )}
+        <div className="space-y-3">
+          {stats.recentActivity && stats.recentActivity.length > 0 ? (
+            stats.recentActivity.slice(0, 5).map((activity, index) => (
+              <div key={index} className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800/70 transition-colors">
+                <div className="text-2xl">{activity.icon}</div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">{activity.title}</p>
+                  <p className="text-slate-400 text-sm">{activity.details}</p>
+                </div>
+                <div className="text-slate-500 text-sm">
+                  {new Date(activity.timestamp).toLocaleDateString()}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-slate-400 text-center py-8">No recent activity</p>
+          )}
+        </div>
+      </div>
 
+      
       {/* Filters and Controls */}
       <div className="flex flex-col gap-4 lg:flex-row lg:gap-4 lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2">
@@ -627,6 +830,17 @@ export default function AdminDashboard() {
           >
             ✨ Create Opportunity
           </button>
+          
+          {/* Select All Checkbox */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 rounded-xl">
+            <input
+              type="checkbox"
+              checked={selectedEvents.length === getFilteredEvents().length && getFilteredEvents().length > 0}
+              onChange={handleSelectAll}
+              className="w-4 h-4 bg-slate-700 border-slate-600 rounded text-sky-500 focus:ring-sky-500 focus:ring-2"
+            />
+            <span className="text-slate-300 text-sm">Select All</span>
+          </div>
           
           {/* View Toggle */}
           <div className="flex bg-slate-800/50 rounded-lg p-1">
@@ -694,6 +908,36 @@ export default function AdminDashboard() {
           </select>
         </div>
         
+        {/* Bulk Actions */}
+        {selectedEvents.length > 0 && (
+          <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-2 rounded-lg">
+            <span className="text-slate-300 text-sm">{selectedEvents.length} selected</span>
+            <select
+              className="bg-slate-700/50 border border-slate-600/50 text-white px-2 py-1 rounded text-sm"
+              value={bulkAction}
+              onChange={(e) => setBulkAction(e.target.value)}
+            >
+              <option value="">Bulk Action</option>
+              <option value="activate">Set Active</option>
+              <option value="close">Set Closed</option>
+              <option value="draft">Set Draft</option>
+              <option value="delete">Delete</option>
+            </select>
+            <button
+              onClick={handleBulkAction}
+              className="bg-sky-500 hover:bg-sky-600 text-white px-3 py-1 rounded text-sm"
+            >
+              Apply
+            </button>
+            <button
+              onClick={() => setSelectedEvents([])}
+              className="text-slate-400 hover:text-white text-sm"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+        
         <div className="relative w-full lg:w-auto">
           <input
             type="text"
@@ -716,10 +960,10 @@ export default function AdminDashboard() {
     
     if (!filteredEvents || filteredEvents.length === 0) {
       return (
-        <div className="text-center py-12">
-          <div className="text-4xl lg:text-6xl mb-4">🎪</div>
-          <p className="text-slate-400 text-sm lg:text-base">No opportunities found</p>
-        </div>
+        <EmptyState
+          type={searchQuery ? 'search' : 'opportunities'}
+          onAction={() => setShowEventModal(true)}
+        />
       );
     }
 
@@ -728,11 +972,26 @@ export default function AdminDashboard() {
         {filteredEvents.map((event) => (
           <div
             key={event._id}
-            className="group relative overflow-hidden rounded-xl lg:rounded-2xl bg-slate-900/50 border border-slate-800/50 backdrop-blur-xl hover:shadow-2xl hover:shadow-sky-500/10 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
-            onClick={() => setSelectedEvent(event)}
+            className={`group relative overflow-hidden rounded-xl lg:rounded-2xl bg-slate-900/50 border backdrop-blur-xl hover:shadow-2xl hover:shadow-sky-500/10 transition-all duration-300 hover:scale-[1.02] cursor-pointer ${
+              selectedEvents.includes(event._id) ? 'border-sky-500/50' : 'border-slate-800/50'
+            }`}
+            onClick={() => !event.target.closest('.no-select') && setSelectedEvent(event)}
           >
             {/* Event Image */}
             <div className="relative h-32 lg:h-48 overflow-hidden">
+              {/* Checkbox for bulk selection */}
+              <div className="absolute top-2 left-2 z-10 no-select">
+                <input
+                  type="checkbox"
+                  checked={selectedEvents.includes(event._id)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    handleSelectEvent(event._id);
+                  }}
+                  className="w-4 h-4 bg-slate-700 border-slate-600 rounded text-sky-500 focus:ring-sky-500 focus:ring-2"
+                />
+              </div>
+              
               {event.imageUrl ? (
                 <img src={event.imageUrl} alt={event.title} className="w-full h-full object-cover" />
               ) : (
@@ -770,8 +1029,15 @@ export default function AdminDashboard() {
               </div>
 
               <div className="flex items-center justify-between mb-2 lg:mb-4">
-                <div className={`px-2 py-1 rounded-lg text-xs font-medium ${getUrgentColor(getDaysLeft(event.deadline))}`}>
-                  {getDaysLeft(event.deadline) > 0 ? `${getDaysLeft(event.deadline)} days left` : "Expired"}
+                <div className="flex items-center gap-2">
+                  {getDaysLeft(event.deadline) > 0 && getDaysLeft(event.deadline) <= 7 && (
+                    <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs font-medium">
+                      Closing Soon
+                    </span>
+                  )}
+                  <div className={`px-2 py-1 rounded-lg text-xs font-medium ${getUrgentColor(getDaysLeft(event.deadline))}`}>
+                    {getDaysLeft(event.deadline) > 0 ? `${getDaysLeft(event.deadline)} days left` : "Expired"}
+                  </div>
                 </div>
                 <div className="text-slate-400 text-xs lg:text-xs">
                   📅 {formatDate(event.deadline)}
@@ -842,6 +1108,15 @@ export default function AdminDashboard() {
                 className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1.5 lg:px-3 lg:py-2 rounded-lg text-xs lg:text-sm font-medium transition-colors"
               >
                 Edit
+              </button>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDuplicateEvent(event);
+                }}
+                className="flex-1 bg-purple-500 hover:bg-purple-600 text-white px-2 py-1.5 lg:px-3 lg:py-2 rounded-lg text-xs lg:text-sm font-medium transition-colors"
+              >
+                Duplicate
               </button>
               <button 
                 onClick={(e) => {
@@ -1397,71 +1672,6 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const renderApplications = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold text-white">Applications Management</h2>
-        <div className="flex gap-2">
-          <select className="bg-slate-800/50 border border-slate-700/50 text-white px-4 py-2 rounded-xl focus:outline-none focus:border-sky-500">
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl backdrop-blur-xl overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-slate-800/50 border-b border-slate-700/50">
-            <tr>
-              <th className="text-left p-4 text-slate-300 font-medium">Student</th>
-              <th className="text-left p-4 text-slate-300 font-medium">Opportunity</th>
-              <th className="text-left p-4 text-slate-300 font-medium">Applied Date</th>
-              <th className="text-left p-4 text-slate-300 font-medium">Status</th>
-              <th className="text-left p-4 text-slate-300 font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications.map((app) => (
-              <tr key={app._id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-lg">
-                      📝
-                    </div>
-                    <div>
-                      <h4 className="text-white font-medium">{app.student?.fullName}</h4>
-                      <p className="text-slate-400 text-sm">{app.student?.email}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4 text-slate-300">{app.opportunity?.title}</td>
-                <td className="p-4 text-slate-300">{new Date(app.appliedAt).toLocaleDateString()}</td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 rounded-lg text-xs ${
-                    app.status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                    app.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                    'bg-yellow-500/20 text-yellow-400'
-                  }`}>
-                    {app.status}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <div className="flex gap-2">
-                    <button className="text-blue-400 hover:text-blue-300 transition-colors">View</button>
-                    <button className="text-green-400 hover:text-green-300 transition-colors">Approve</button>
-                    <button className="text-red-400 hover:text-red-300 transition-colors">Reject</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
   const renderNotifications = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1589,29 +1799,217 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const renderApplications = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold text-white">Applications Management</h2>
+        <div className="flex items-center gap-4">
+          <div className="relative w-80">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search applications..."
+              className="w-full bg-slate-800/50 border border-slate-700/50 text-white pl-10 pr-4 py-3 rounded-xl focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 backdrop-blur-xl"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={() => handleExportData('applications', 'csv')}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 text-white rounded-xl hover:bg-slate-800/70 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        </div>
+      </div>
+
+      {/* Applications Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 p-6 rounded-2xl backdrop-blur-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center text-2xl">
+              📝
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">{stats.totalApplications}</div>
+          <div className="text-purple-300 text-sm">Total Applications</div>
+        </div>
+        <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 p-6 rounded-2xl backdrop-blur-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center text-2xl">
+              ⏳
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">0</div>
+          <div className="text-green-300 text-sm">Pending Review</div>
+        </div>
+        <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 p-6 rounded-2xl backdrop-blur-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center text-2xl">
+              ✅
+            </div>
+          </div>
+          <div className="text-3xl font-bold text-white mb-1">0</div>
+          <div className="text-blue-300 text-sm">Selected</div>
+        </div>
+      </div>
+
+      {/* Applications Table */}
+      <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl backdrop-blur-xl overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-slate-800/50 border-b border-slate-700/50">
+            <tr>
+              <th className="text-left p-4 text-slate-300 font-medium">Student</th>
+              <th className="text-left p-4 text-slate-300 font-medium">Opportunity</th>
+              <th className="text-left p-4 text-slate-300 font-medium">Applied Date</th>
+              <th className="text-left p-4 text-slate-300 font-medium">Status</th>
+              <th className="text-left p-4 text-slate-300 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {applications.length > 0 ? (
+              applications.map((app) => (
+                <tr key={app._id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center text-lg">
+                        📝
+                      </div>
+                      <div>
+                        <h4 className="text-white font-medium">{app.student?.fullName || 'Unknown Student'}</h4>
+                        <p className="text-slate-400 text-sm">{app.student?.email || 'No email'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-4 text-slate-300">{app.opportunity?.title || 'Unknown Opportunity'}</td>
+                  <td className="p-4 text-slate-300">{new Date(app.createdAt || Date.now()).toLocaleDateString()}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded-lg text-xs ${
+                      app.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                      app.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {app.status || 'Pending'}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => showToast('info', `Viewing application from ${app.student?.fullName}`)}
+                        className="text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        View
+                      </button>
+                      {app.status !== 'approved' && (
+                        <button 
+                          onClick={() => showToast('success', `Approved application from ${app.student?.fullName}`)}
+                          className="text-green-400 hover:text-green-300 transition-colors"
+                        >
+                          Approve
+                        </button>
+                      )}
+                      {app.status !== 'rejected' && (
+                        <button 
+                          onClick={() => showToast('warning', `Rejected application from ${app.student?.fullName}`)}
+                          className="text-red-400 hover:text-red-300 transition-colors"
+                        >
+                          Reject
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="5" className="p-8">
+                  <EmptyState
+                    type="applications"
+                    title="No Applications Yet"
+                    description="Applications will appear here when students apply to opportunities."
+                  />
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   const renderSettings = () => (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold text-white">Settings</h2>
       
       <div className="bg-slate-900/50 border border-slate-800/50 rounded-2xl backdrop-blur-xl p-6">
-        <h3 className="text-xl font-semibold text-white mb-4">Profile Settings</h3>
+        <h3 className="text-xl font-semibold text-white mb-4">Admin Profile</h3>
         <div className="space-y-4">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-20 h-20 bg-gradient-to-br from-sky-500 to-purple-600 rounded-full flex items-center justify-center text-2xl font-bold text-white">
+              {adminName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h4 className="text-xl font-semibold text-white">{adminName}</h4>
+              <p className="text-slate-400">Administrator</p>
+              <p className="text-slate-500 text-sm">admin@campusbridge.com</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Full Name</label>
+              <input
+                type="text"
+                className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-sky-500"
+                value={adminName}
+                onChange={(e) => setAdminName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Email</label>
+              <input
+                type="email"
+                className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-sky-500"
+                defaultValue="admin@campusbridge.com"
+              />
+            </div>
+          </div>
+          
           <div>
-            <label className="block text-slate-300 text-sm font-medium mb-2">Admin Name</label>
+            <label className="block text-slate-300 text-sm font-medium mb-2">Current Password</label>
             <input
-              type="text"
-              className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-sky-500"
-              defaultValue="Administrator"
+              type="password"
+              className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-sky-500 mb-4"
+              placeholder="Enter current password"
             />
           </div>
-          <div>
-            <label className="block text-slate-300 text-sm font-medium mb-2">Email</label>
-            <input
-              type="email"
-              className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-sky-500"
-              defaultValue="admin@campusbridge.com"
-            />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">New Password</label>
+              <input
+                type="password"
+                className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-sky-500"
+                placeholder="Enter new password"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm font-medium mb-2">Confirm Password</label>
+              <input
+                type="password"
+                className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-sky-500"
+                placeholder="Confirm new password"
+              />
+            </div>
           </div>
+          
+          <button 
+            onClick={() => showToast('success', 'Profile updated successfully!')}
+            className="mt-4 px-6 py-3 bg-gradient-to-r from-sky-500 to-purple-600 hover:from-sky-600 hover:to-purple-700 text-white rounded-xl font-medium transition-all"
+          >
+            Update Profile
+          </button>
         </div>
       </div>
 
@@ -1647,7 +2045,7 @@ export default function AdminDashboard() {
       if (loading) {
         return (
           <div className="flex items-center justify-center h-64">
-            <div className="text-white text-xl">Loading dashboard...</div>
+            <LoadingSpinner size="large" text="Loading dashboard..." />
           </div>
         );
       }
@@ -1655,6 +2053,8 @@ export default function AdminDashboard() {
       switch (activeSection) {
         case "events": return renderEventsDashboard();
         case "create-event": return renderEventsDashboard(); // Show events dashboard, modal will be opened separately
+        case "applications": return renderApplications();
+        case "users": return renderStudents();
         case "calendar": return <OpportunityCalendar />;
         case "settings": return renderSettings();
         default: return renderEventsDashboard();
@@ -1759,22 +2159,36 @@ export default function AdminDashboard() {
                 />
               </div>
 
+              {/* Notification Bell */}
+              <button className="relative p-2 text-slate-400 hover:text-white transition-colors">
+                <div className="w-5 h-5 relative">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118.14 15.62V13a2.032 2.032 0 00-1.405-1.405L15 10.5v-2a7 7 0 10-14 0v2l-1.735 1.735A2.032 2.032 0 012.86 15.62V17h5m0 0v2a2 2 0 104 0v-2" />
+                  </svg>
+                  <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+                </div>
+              </button>
+
               <div className="relative z-[10000] profile-dropdown-container">
                 <button
                   onClick={() => setProfileDropdown(!profileDropdown)}
                   className="flex items-center gap-2 px-2 lg:px-3 py-2 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
                 >
                   <div className="w-6 h-6 lg:w-8 lg:h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs lg:text-sm font-bold">A</span>
+                    <span className="text-white text-xs lg:text-sm font-bold">{adminName.charAt(0).toUpperCase()}</span>
                   </div>
-                  <span className="text-white text-xs lg:text-sm hidden sm:block">Admin</span>
+                  <span className="text-white text-xs lg:text-sm hidden sm:block">{adminName}</span>
                 </button>
 
                 {profileDropdown && (
                   <div className="absolute right-0 mt-2 w-48 bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-xl z-[9999]">
+                    <div className="px-4 py-3 border-b border-slate-700/50">
+                      <p className="text-white font-medium">{adminName}</p>
+                      <p className="text-slate-400 text-sm">Administrator</p>
+                    </div>
                     <button 
                       onClick={() => {setActiveSection("settings"); setProfileDropdown(false);}}
-                      className="w-full px-4 py-3 text-left text-white hover:bg-slate-700/50 transition-colors rounded-t-xl"
+                      className="w-full px-4 py-3 text-left text-white hover:bg-slate-700/50 transition-colors"
                     >
                       Profile Settings
                     </button>
@@ -1784,20 +2198,28 @@ export default function AdminDashboard() {
                     >
                       System Preferences
                     </button>
+                    <div className="border-t border-slate-700/50">
+                      <button 
+                        onClick={() => {
+                          localStorage.removeItem("token");
+                          localStorage.removeItem("role");
+                          localStorage.removeItem("user");
+                          sessionStorage.removeItem("token");
+                          sessionStorage.removeItem("role");
+                          sessionStorage.removeItem("user");
+                          navigate("/login");
+                        }}
+                        className="w-full px-4 py-3 text-left text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors rounded-b-xl"
+                      >
+                        Logout
+                      </button>
+                    </div>
                     <button 
                       onClick={() => {alert("Help & Support: Contact admin@campusbridge.edu.in for assistance"); setProfileDropdown(false);}}
                       className="w-full px-4 py-3 text-left text-white hover:bg-slate-700/50 transition-colors"
                     >
                       Help & Support
                     </button>
-                    <div className="border-t border-slate-700/50">
-                      <button 
-                        onClick={handleLogout}
-                        className="w-full px-4 py-3 text-left text-red-400 hover:bg-red-500/10 transition-colors rounded-b-xl"
-                      >
-                        Logout
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -2129,6 +2551,15 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

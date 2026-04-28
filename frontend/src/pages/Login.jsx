@@ -32,6 +32,7 @@ export default function Login() {
       if (remember) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("role", role);
+        localStorage.setItem("user", JSON.stringify(data.user));
       } else {
         sessionStorage.setItem("token", data.token);
         sessionStorage.setItem("role", role);

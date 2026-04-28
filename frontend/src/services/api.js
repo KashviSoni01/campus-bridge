@@ -54,6 +54,17 @@ export const dashboardAPI = {
   }
 };
 
+export const activityAPI = {
+  getAll: async (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiRequest(`/api/activity?${queryString}`);
+  },
+
+  getStats: async () => {
+    return apiRequest('/api/activity/stats');
+  }
+};
+
 export const opportunityAPI = {
   getAll: async (params = {}) => {
     const queryString = new URLSearchParams(params).toString();

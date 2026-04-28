@@ -1,6 +1,25 @@
 import Opportunity from "../models/Opportunity.js";
 import Application from "../models/Application.js";
 import User from "../models/User.js";
+import ActivityLog from "../models/ActivityLog.js";
+
+const logActivity = async (action, userId, opportunityId, message, details = {}, priority = "medium") => {
+  try {
+    const activity = new ActivityLog({
+      action,
+      userId,
+      opportunityId,
+      message,
+      details,
+      priority
+    });
+    
+    await activity.save();
+    return activity;
+  } catch (error) {
+    console.error("Error logging activity:", error);
+  }
+};
 
 export const getOpportunities = async (req, res) => {
   try {
@@ -9,11 +28,10 @@ export const getOpportunities = async (req, res) => {
       limit = 10, 
       search, 
       category, 
-      domain, 
       status, 
-      featured,
-      sortBy = "createdAt",
-      sortOrder = "desc"
+      sortBy = "deadline",
+      sortOrder = "asc",
+      mode
     } = req.query;
     
     const skip = (page - 1) * limit;
@@ -28,17 +46,22 @@ export const getOpportunities = async (req, res) => {
       ];
     }
 
-    if (category) query.category = category;
-    if (domain) query.domain = domain;
-    if (status) query.status = status;
-    if (featured !== undefined) query.featured = featured === "true";
+    if (category && category !== "all") {
+      query.category = category;
+    }
+
+    if (status && status !== "all") {
+      query.status = status;
+    }
+
+    // Exclude deleted opportunities
+    query.isDeleted = { $ne: true };
 
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     const opportunities = await Opportunity.find(query)
       .populate("postedBy", "fullName email")
-      .populate("approvedBy", "fullName email")
       .sort(sortOptions)
       .skip(skip)
       .limit(parseInt(limit));
@@ -55,24 +78,54 @@ export const getOpportunities = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Get opportunities error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ 
+      success: false,
+      message: "Server error" 
+    });
   }
 };
 
 export const createOpportunity = async (req, res) => {
   try {
-    console.log("Create opportunity request body:", req.body);
-    console.log("Create opportunity user:", req.user);
-    
     const opportunityData = {
-      ...req.body,
-      postedBy: req.user?.id || null
+      ...req.body
     };
 
-    console.log("Processed opportunity data:", opportunityData);
+    // Validation
+    if (!opportunityData.title || !opportunityData.description || !opportunityData.organization || !opportunityData.deadline) {
+      return res.status(400).json({
+        success: false,
+        message: "Required fields: title, description, organization, deadline"
+      });
+    }
 
-    if (!opportunityData.postedBy) {
+    // Check for past deadline
+    if (new Date(opportunityData.deadline) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: "Deadline cannot be in the past"
+      });
+    }
+
+    // Duplicate detection
+    const existingOpportunity = await Opportunity.findOne({
+      title: opportunityData.title,
+      organization: opportunityData.organization,
+      isDeleted: { $ne: true }
+    });
+
+    if (existingOpportunity) {
+      return res.status(400).json({
+        success: false,
+        message: "Opportunity with same title and organization already exists"
+      });
+    }
+
+    // Only set postedBy for real users (not admin bypass)
+    if (req.user?.id && req.user.id !== 'admin123' && req.user.id !== 'student123') {
+      opportunityData.postedBy = req.user.id;
+    } else {
+      // For admin bypass, don't set postedBy
       delete opportunityData.postedBy;
     }
 
@@ -82,40 +135,36 @@ export const createOpportunity = async (req, res) => {
       }
     });
 
-    console.log("Cleaned opportunity data:", opportunityData);
-
     const opportunity = new Opportunity(opportunityData);
     await opportunity.save();
-
-    console.log("Opportunity saved successfully:", opportunity._id);
 
     const populatedOpportunity = await Opportunity.findById(opportunity._id)
       .populate("postedBy", "fullName email");
 
-    console.log("Returning populated opportunity:", populatedOpportunity);
+    // Log activity
+    await logActivity(
+      "create",
+      req.user?.id,
+      opportunity._id,
+      `New opportunity created: ${opportunity.title}`,
+      {
+        title: opportunity.title,
+        organization: opportunity.organization,
+        category: opportunity.category,
+        deadline: opportunity.deadline
+      },
+      "high"
+    );
 
     res.status(201).json(populatedOpportunity);
   } catch (error) {
-    console.error("Create opportunity error details:", {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      errors: error.errors
-    });
-    
     let errorMessage = "Server error";
     if (error.name === 'ValidationError') {
       errorMessage = `Validation error: ${Object.values(error.errors).map(e => e.message).join(', ')}`;
-    } else if (error.name === 'CastError') {
-      errorMessage = `Invalid data format: ${error.message}`;
-    } else if (error.code === 11000) {
-      errorMessage = "Duplicate entry detected";
     }
-    
     res.status(500).json({ 
-      message: errorMessage, 
-      details: error.message,
-      error: error.name 
+      success: false, 
+      message: errorMessage 
     });
   }
 };
@@ -135,14 +184,6 @@ export const updateOpportunity = async (req, res) => {
       return res.status(404).json({ message: "Opportunity not found" });
     }
 
-    await ActivityLog.create({
-      user: req.user.id,
-      action: "Opportunity Update",
-      resource: "Opportunity",
-      resourceId: id,
-      details: { title: opportunity.title }
-    });
-
     res.json(opportunity);
   } catch (error) {
     console.error("Update opportunity error:", error);
@@ -161,17 +202,8 @@ export const deleteOpportunity = async (req, res) => {
 
     await Application.deleteMany({ opportunity: id });
 
-    await ActivityLog.create({
-      user: req.user.id,
-      action: "Opportunity Delete",
-      resource: "Opportunity",
-      resourceId: id,
-      details: { title: opportunity.title }
-    });
-
     res.json({ message: "Opportunity deleted successfully" });
   } catch (error) {
-    console.error("Delete opportunity error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -198,6 +230,134 @@ export const toggleFeature = async (req, res) => {
   }
 };
 
+export const incrementViews = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const opportunity = await Opportunity.findByIdAndUpdate(
+      id,
+      { $inc: { views: 1 } },
+      { new: true }
+    );
+
+    if (!opportunity) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Opportunity not found" 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { views: opportunity.views }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error" 
+    });
+  }
+};
+
+export const softDeleteOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const opportunity = await Opportunity.findByIdAndUpdate(
+      id,
+      { 
+        isDeleted: true, 
+        deletedAt: new Date(),
+        status: "Closed"
+      },
+      { new: true }
+    );
+
+    if (!opportunity) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Opportunity not found" 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: opportunity
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error" 
+    });
+  }
+};
+
+export const restoreOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const opportunity = await Opportunity.findByIdAndUpdate(
+      id,
+      { 
+        isDeleted: false, 
+        deletedAt: null,
+        status: "Active"
+      },
+      { new: true }
+    );
+
+    if (!opportunity) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Opportunity not found" 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: opportunity
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error" 
+    });
+  }
+};
+
+export const extendDeadline = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { deadline } = req.body;
+
+    const opportunity = await Opportunity.findByIdAndUpdate(
+      id,
+      { 
+        deadline: new Date(deadline),
+        status: "Active"
+      },
+      { new: true }
+    );
+
+    if (!opportunity) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Opportunity not found" 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: opportunity
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error" 
+    });
+  }
+};
+
 export const duplicateOpportunity = async (req, res) => {
   try {
     const { id } = req.params;
@@ -211,7 +371,7 @@ export const duplicateOpportunity = async (req, res) => {
       ...originalOpportunity.toObject(),
       _id: undefined,
       title: `${originalOpportunity.title} (Copy)`,
-      postedBy: req.user.id,
+      postedBy: req.user?.id,
       status: "Draft",
       views: 0,
       applications: 0,
@@ -237,8 +397,7 @@ export const getOpportunityDetails = async (req, res) => {
     const { id } = req.params;
 
     const opportunity = await Opportunity.findById(id)
-      .populate("postedBy", "fullName email")
-      .populate("approvedBy", "fullName email");
+      .populate("postedBy", "fullName email");
 
     if (!opportunity) {
       return res.status(404).json({ message: "Opportunity not found" });
@@ -246,20 +405,11 @@ export const getOpportunityDetails = async (req, res) => {
 
     const applications = await Application.find({ opportunity: id })
       .populate("student", "fullName email department year")
-      .sort({ appliedDate: -1 });
-
-    const stats = {
-      totalApplications: applications.length,
-      pendingApplications: applications.filter(app => app.status === "Pending").length,
-      reviewedApplications: applications.filter(app => app.status === "Reviewed").length,
-      selectedApplications: applications.filter(app => app.status === "Selected").length,
-      rejectedApplications: applications.filter(app => app.status === "Rejected").length
-    };
+      .sort({ createdAt: -1 });
 
     res.json({
       opportunity,
-      applications,
-      stats
+      applications
     });
   } catch (error) {
     console.error("Get opportunity details error:", error);
@@ -276,13 +426,6 @@ export const bulkUpdateOpportunities = async (req, res) => {
       updateData
     );
 
-    await ActivityLog.create({
-      user: req.user.id,
-      action: "Bulk Opportunity Update",
-      resource: "Opportunity",
-      details: { count: result.modifiedCount, updateData }
-    });
-
     res.json({
       message: "Bulk update successful",
       modifiedCount: result.modifiedCount
@@ -297,14 +440,12 @@ export const bulkDeleteOpportunities = async (req, res) => {
   try {
     const { opportunityIds } = req.body;
 
-    const result = await Opportunity.deleteMany({ _id: { $in: opportunityIds } });
+    const result = await Opportunity.deleteMany({
+      _id: { $in: opportunityIds }
+    });
 
-    await Application.deleteMany({ opportunity: { $in: opportunityIds } });
-    await ActivityLog.create({
-      user: req.user.id,
-      action: "Bulk Opportunity Delete",
-      resource: "Opportunity",
-      details: { count: result.deletedCount }
+    await Application.deleteMany({
+      opportunity: { $in: opportunityIds }
     });
 
     res.json({

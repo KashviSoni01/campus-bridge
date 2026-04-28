@@ -10,7 +10,29 @@ const applicationSchema = new mongoose.Schema(
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+    name: {
+      type: String,
       required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+    },
+    phone: {
+      type: String,
+    },
+    college: {
+      type: String,
+    },
+    branch: {
+      type: String,
+    },
+    year: {
+      type: String,
+    },
+    portfolio: {
+      type: String,
     },
     status: {
       type: String,
@@ -49,9 +71,6 @@ const applicationSchema = new mongoose.Schema(
       type: String,
     }],
     experience: {
-      type: String,
-    },
-    portfolio: {
       type: String,
     },
     linkedin: {

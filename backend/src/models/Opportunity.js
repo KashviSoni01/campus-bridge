@@ -133,6 +133,27 @@ const opportunitySchema = new mongoose.Schema(
     scheduledPublishDate: {
       type: Date,
     },
+    // Admin-only features
+    adminNotes: {
+      type: String,
+      default: ""
+    },
+    visibility: {
+      type: String,
+      enum: ["Public", "Private"],
+      default: "Public"
+    },
+    customTags: [{
+      type: String,
+      enum: ["Remote", "Urgent", "High Stipend", "Part-time", "Full-time", "Entry Level"]
+    }],
+    isDeleted: {
+      type: Boolean,
+      default: false
+    },
+    deletedAt: {
+      type: Date
+    },
 
     isExpired: {
       type: Boolean,
@@ -160,12 +181,11 @@ opportunitySchema.index({ deadline: 1 });
 opportunitySchema.index({ featured: 1, status: 1 });
 opportunitySchema.index({ isExpired: 1 });
 
-opportunitySchema.pre('save', function(next) {
+opportunitySchema.pre('save', async function() {
   if (this.deadline && new Date() > new Date(this.deadline)) {
     this.isExpired = true;
     this.status = 'Expired';
   }
-  next();
 });
 
 const Opportunity = mongoose.model("Opportunity", opportunitySchema);

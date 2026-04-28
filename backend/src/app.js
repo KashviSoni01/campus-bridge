@@ -5,38 +5,57 @@ import cors from "cors";
 import { signup, login } from "./controllers/authController.js";
 import adminRoutes from "./routes/admin.js";
 
+import opportunitiesRoutes from "./routes/opportunities.js";
+import applicationsRoutes from "./routes/applications.js";
+import savedRoutes from "./routes/saved.js";
+import activityRoutes from "./routes/activity.js";
+
 dotenv.config();
 
 const app = express();
-const mongoUri = process.env.MONGODB_URI;
+const mongoUri = process.env.MONGO_URI;
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5175', 'http://127.0.0.1:5175'],
+  credentials: true
+}));
 app.use(express.json());
+
+app.use("/api/admin", adminRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected Successfully"))
   .catch((err) => console.error("MongoDB Connection error:", err));
 
-// Routes
 app.get("/", (req, res) => {
   res.send("CampusBridge Backend Running");
 });
 
-// Auth routes
+app.get("/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "Backend is healthy",
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get("/force-login", (req, res) => {
+  res.json({
+    success: true,
+    message: "Please login again",
+    action: "CLEAR_TOKENS_AND_LOGIN",
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.post("/signup", signup);
 app.post("/login", login);
 
-// Admin routes
-app.use("/api/admin", adminRoutes);
-
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: "Something went wrong!" });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
@@ -44,5 +63,5 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  // Server running on port ${PORT}
 });
