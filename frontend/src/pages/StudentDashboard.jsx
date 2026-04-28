@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Trophy, Briefcase, GraduationCap, CalendarDays } from "lucide-react";
 import OpportunityCard from "../components/OpportunityCard";
 import DashboardLayout from "../components/DashboardLayout";
+import Chatbot from "../components/Chatbot";
 
 const categories = [
   { key: "hackathons", title: "Hackathons", icon: Trophy },
@@ -154,6 +155,8 @@ function StudentDashboard() {
         </div>
 
       </div>
+
+      <Chatbot />
 
     </DashboardLayout>
   );
