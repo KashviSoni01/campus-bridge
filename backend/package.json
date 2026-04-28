@@ -21,6 +21,7 @@
     "mongoose": "^9.2.3",
     "multer": "^2.1.1",
     "node-fetch": "^3.3.2",
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "google-auth-library": "^9.6.3"
   }
 }

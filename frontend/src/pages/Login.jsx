@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
 import AuthLayout from "../components/AuthLayout.jsx";
+import { authAPI } from "../services/api.js";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -17,14 +19,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
-
+      const data = await authAPI.login({ email, password });
       const domain = (email.split("@")[1] || "").toLowerCase();
       const backendRole = data.user?.role;
       const role = backendRole || (domain.includes("admin") ? "admin" : "student");
@@ -41,6 +36,25 @@ export default function Login() {
       navigate(role === "admin" ? "/admin" : "/student");
     } catch (err) {
       setError(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError("");
+    setLoading(true);
+    try {
+      const data = await authAPI.googleLogin(credentialResponse.credential);
+      const role = data.user?.role || "student";
+      
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("role", role);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      navigate(role === "admin" ? "/admin" : "/student");
+    } catch (err) {
+      setError(err.message || "Google authentication failed");
     } finally {
       setLoading(false);
     }
@@ -82,7 +96,7 @@ export default function Login() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@student.edu.in"
+            placeholder="you@admin/chitkara.edu.in"
             className="w-full rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 outline-none ring-0 transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/60"
             required
           />
@@ -138,10 +152,30 @@ export default function Login() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-1 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-400 px-3 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-900/60 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+          className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-400 px-3 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-900/60 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {loading ? "Signing you in..." : "Continue to dashboard"}
+          {loading ? "Signing in..." : "Sign in"}
         </button>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-800"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-slate-950 px-2 text-slate-500">Or continue with</span>
+          </div>
+        </div>
+
+        <div className="flex justify-center">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => setError("Google Sign-in failed")}
+            useOneTap
+            theme="filled_black"
+            shape="circle"
+            width="100%"
+          />
+        </div>
       </form>
     </AuthLayout>
   );

@@ -2,8 +2,11 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
-import { signup, login } from "./controllers/authController.js";
+import path from "path";
+import { fileURLToPath } from "url";
+import { signup, login, googleLogin } from "./controllers/authController.js";
 import adminRoutes from "./routes/admin.js";
+import upload from "./middleware/upload.js";
 
 import opportunitiesRoutes from "./routes/opportunities.js";
 import applicationsRoutes from "./routes/applications.js";
@@ -11,44 +14,49 @@ import savedRoutes from "./routes/saved.js";
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/campusbridge";
 
-// Middleware
+
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from uploads directory
+app.use("/uploads", express.static(path.join(path.dirname(__dirname), "uploads")));
 
-//student 
+
+
 app.use("/api/opportunities", opportunitiesRoutes);
 app.use("/api/applications", applicationsRoutes);
 app.use("/api/saved", savedRoutes);
 
-// Database connection
+
 mongoose
   .connect(mongoUri)
   .then(() => console.log("MongoDB Connected Successfully"))
   .catch((err) => console.error("MongoDB Connection error:", err));
 
-// Routes
 app.get("/", (req, res) => {
   res.send("CampusBridge Backend Running");
 });
 
-// Auth routes
-app.post("/signup", signup);
-app.post("/login", login);
 
-// Admin routes
+app.post("/signup", upload.single("profilePicture"), signup);
+app.post("/login", login);
+app.post("/google-login", googleLogin);
+
+
 app.use("/api/admin", adminRoutes);
 
-// Error handling middleware
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: "Something went wrong!" });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });

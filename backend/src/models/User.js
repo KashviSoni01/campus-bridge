@@ -45,6 +45,11 @@ const userSchema = new mongoose.Schema(
         return this.role === "student";
       },
     },
+
+    profilePicture: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

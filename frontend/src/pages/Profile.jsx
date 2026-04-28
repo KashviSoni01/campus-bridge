@@ -8,6 +8,7 @@ import {
   MapPin
 } from "lucide-react";
 import DashboardLayout from "../components/DashboardLayout";
+import { API_BASE_URL } from "../services/api.js";
 
 function Profile() {
 
@@ -102,8 +103,16 @@ function Profile() {
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6 flex items-center gap-6">
 
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-sky-500 via-indigo-500 to-emerald-400 flex items-center justify-center text-black text-xl font-bold">
-              {initials}
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-sky-500 via-indigo-500 to-emerald-400 flex items-center justify-center text-black text-xl font-bold overflow-hidden">
+              {user?.profilePicture ? (
+                <img
+                  src={`http://localhost:5000${user.profilePicture}`}
+                  alt={user.fullName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                initials
+              )}
             </div>
 
             <div className="flex-1">

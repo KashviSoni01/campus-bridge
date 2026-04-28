@@ -44,7 +44,7 @@ const applicationSchema = new mongoose.Schema(
       default: Date.now,
     },
     resume: {
-      type: String, // URL to resume file
+      type: String, 
     },
     coverLetter: {
       type: String,

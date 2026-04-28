@@ -4,7 +4,7 @@ import { opportunities as storeOpportunities } from "../data/store.js";
 
 const router = express.Router();
 
-/* GET all opportunities */
+
 router.get("/", async (req, res) => {
   try {
     const dbOpportunities = await Opportunity.find();
@@ -15,7 +15,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-/* GET single opportunity */
+
 router.get("/:id", async (req, res) => {
   try {
     // First check store

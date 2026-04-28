@@ -1,17 +1,22 @@
-const API_BASE_URL = 'http://localhost:5000';
+export const API_BASE_URL = 'http://localhost:5000';
 
-const getAuthHeaders = () => {
+const getAuthHeaders = (isMultipart = false) => {
   const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
+  const headers = {
     ...(token && { 'Authorization': `Bearer ${token}` })
   };
+  
+  if (!isMultipart) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
+  return headers;
 };
 
-const apiRequest = async (endpoint, options = {}) => {
+const apiRequest = async (endpoint, options = {}, isMultipart = false) => {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: getAuthHeaders(),
+      headers: getAuthHeaders(isMultipart),
       ...options
     });
 
@@ -37,9 +42,18 @@ export const authAPI = {
   },
 
   signup: async (userData) => {
+    // Check if userData is FormData
+    const isMultipart = userData instanceof FormData;
     return apiRequest('/signup', {
       method: 'POST',
-      body: JSON.stringify(userData)
+      body: isMultipart ? userData : JSON.stringify(userData)
+    }, isMultipart);
+  },
+
+  googleLogin: async (credential) => {
+    return apiRequest('/google-login', {
+      method: 'POST',
+      body: JSON.stringify({ credential })
     });
   }
 };
