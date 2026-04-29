@@ -167,17 +167,23 @@ export const updateUserStatus = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    await ActivityLog.create({
-      user: req.user.id,
-      action: "User Status Change",
-      resource: "User",
-      resourceId: userId,
-      details: { status, role }
-    });
-
     res.json(user);
   } catch (error) {
     console.error("Update user status error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getApplications = async (req, res) => {
+  try {
+    const applications = await Application.find()
+      .populate('student', 'fullName email')
+      .populate('opportunity', 'title')
+      .sort({ createdAt: -1 });
+      
+    res.json({ applications });
+  } catch (error) {
+    console.error("Get applications error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };

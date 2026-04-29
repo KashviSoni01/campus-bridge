@@ -3,7 +3,8 @@ import { authenticate, isAdmin } from "../middleware/adminAuth.js";
 import {
   getDashboardStats,
   getAnalytics,
-  getUsers
+  getUsers,
+  getApplications
 } from "../controllers/adminDashboardController.js";
 import {
   getOpportunities,
@@ -25,6 +26,7 @@ router.use(isAdmin);
 router.get("/dashboard/stats", getDashboardStats);
 router.get("/dashboard/analytics", getAnalytics);
 router.get("/users", getUsers);
+router.get("/applications", getApplications);
 
 
 
