@@ -5,6 +5,7 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import { signup, login, googleLogin } from "./controllers/authController.js";
+import { chatWithAI } from "./controllers/chatController.js";
 import adminRoutes from "./routes/admin.js";
 import upload from "./middleware/upload.js";
 
@@ -34,6 +35,10 @@ app.use("/api/opportunities", opportunitiesRoutes);
 app.use("/api/applications", applicationsRoutes);
 app.use("/api/saved", savedRoutes);
 app.use("/api/users", userRoutes);
+
+// Chat route
+app.options("/api/chat", cors());
+app.post("/api/chat", chatWithAI);
 
 // Shortcut: /api/me -> /api/users/me
 app.use("/api/me", (req, res, next) => {

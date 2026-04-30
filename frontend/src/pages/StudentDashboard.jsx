@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import OpportunityCard from "../components/OpportunityCard";
 import Navbar from "../components/Navbar.jsx";
+import Chatbot from "../components/Chatbot.jsx";
 
 const categories = [
   { key: "all", title: "All", icon: Sparkles },
@@ -328,6 +329,8 @@ function StudentDashboard() {
         </div>
 
       </div>
+
+      <Chatbot />
 
     </div>
   );

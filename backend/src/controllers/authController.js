@@ -150,7 +150,7 @@ export const googleLogin = async (req, res) => {
     const payload = ticket.getPayload();
     const { email, name, picture, sub: googleId } = payload;
 
-    // Verify if it's a college email (optional, based on your requirements)
+ 
     const adminEmailRegex = /^[a-zA-Z0-9._%+-]+@admin\.edu\.in$/;
     const studentEmailRegex = /^[a-zA-Z0-9._%+-]+@chitkara\.edu\.in$/;
     
@@ -161,9 +161,7 @@ export const googleLogin = async (req, res) => {
     let user = await User.findOne({ email });
 
     if (!user) {
-      // Create new user if doesn't exist
-      // Since Google handles auth, we can use a random password or leave it empty if schema allows
-      // But your schema requires password, so let's generate a random one
+      
       const randomPassword = Math.random().toString(36).slice(-10) + Date.now();
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(randomPassword, salt);
@@ -174,9 +172,8 @@ export const googleLogin = async (req, res) => {
         password: hashedPassword,
         profilePicture: picture,
         role: adminEmailRegex.test(email) ? "admin" : "student",
-        // For Google signup, we might need default department/year or ask later
-        department: "Computer Science", // Default
-        year: 1, // Default
+        department: "Computer Science", 
+        year: 1, 
       });
     }
 
